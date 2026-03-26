@@ -1,5 +1,5 @@
 "use client"
-import { useEffect, useMemo, useRef } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { usePathname, useSearchParams } from 'next/navigation'
 import { createClient } from '@supabase/supabase-js'
 import { useAuth } from '@/lib/auth'
@@ -47,6 +47,7 @@ export function AnalyticsTracker() {
   const params = useSearchParams()
   const query = params?.toString() || ''
   const fullPath = query ? `${pathname}?${query}` : pathname
+  const [consentEnabled, setConsentEnabled] = useState(false)
 
   const sb = useMemo(() => createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -61,6 +62,13 @@ export function AnalyticsTracker() {
   const lastPathRef = useRef<string>('')
   const heartbeatRef = useRef<number | null>(null)
   const newDeviceRef = useRef<boolean>(false)
+
+  useEffect(() => {
+    const syncConsent = () => setConsentEnabled(hasAnalyticsConsent())
+    syncConsent()
+    window.addEventListener('nh-consent-changed', syncConsent)
+    return () => window.removeEventListener('nh-consent-changed', syncConsent)
+  }, [])
 
   async function touchDevice(nowIso: string, userId: string | null) {
     if (!deviceIdRef.current) return
@@ -196,7 +204,7 @@ export function AnalyticsTracker() {
   }
 
   useEffect(() => {
-    if (!hasAnalyticsConsent()) return
+    if (!consentEnabled) return
     const eventId = getEventIdFromPath(pathname)
     ;(async () => {
       await endView()
@@ -205,10 +213,10 @@ export function AnalyticsTracker() {
       lastPathRef.current = fullPath
     })()
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [fullPath])
+  }, [fullPath, consentEnabled])
 
   useEffect(() => {
-    if (!hasAnalyticsConsent()) return
+    if (!consentEnabled) return
     const onVisibility = () => {
       if (document.visibilityState === 'hidden') {
         const eventId = getEventIdFromPath(pathname)
@@ -227,11 +235,14 @@ export function AnalyticsTracker() {
       document.removeEventListener('visibilitychange', onVisibility)
       window.removeEventListener('pagehide', onPageHide)
     }
-  }, [fullPath, pathname])
+  }, [fullPath, pathname, consentEnabled])
 
   useEffect(() => {
-    if (!hasAnalyticsConsent()) return
-    if (heartbeatRef.current) window.clearInterval(heartbeatRef.current)
+    if (heartbeatRef.current) {
+      window.clearInterval(heartbeatRef.current)
+      heartbeatRef.current = null
+    }
+    if (!consentEnabled) return
     heartbeatRef.current = window.setInterval(() => {
       const eventId = getEventIdFromPath(pathname)
       touchSession(fullPath, eventId)
@@ -239,13 +250,13 @@ export function AnalyticsTracker() {
     return () => {
       if (heartbeatRef.current) window.clearInterval(heartbeatRef.current)
     }
-  }, [fullPath, pathname, user?.id])
+  }, [fullPath, pathname, user?.id, consentEnabled])
 
   useEffect(() => {
-    if (!hasAnalyticsConsent()) return
+    if (!consentEnabled) return
     const eventId = getEventIdFromPath(pathname)
     touchSession(fullPath, eventId)
-  }, [user?.id, fullPath, pathname])
+  }, [user?.id, fullPath, pathname, consentEnabled])
 
   return null
 }
