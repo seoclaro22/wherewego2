@@ -141,7 +141,7 @@ export function Filters() {
         <option value="">{t('filters.date')}</option>
         <option value="today">{t('date.today')}</option>
         <option value="tomorrow">{t('date.tomorrow')}</option>
-        <option value="weekend">{t('date.weekend')}</option>
+        <option value="this_week">{t('date.this_week')}</option>
         <option value="week">{t('date.week')}</option>
         <option value="month">{t('date.month')}</option>
       </select>

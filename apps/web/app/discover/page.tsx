@@ -18,13 +18,14 @@ function rangeFromDateParam(dateParam?: string) {
     case 'tomorrow': {
       const t = new Date(now); t.setDate(t.getDate() + 1); from = startOfDay(t); to = endOfDay(t); break
     }
-    case 'weekend': {
-      const t = new Date(now)
-      const day = t.getDay()
-      const diffToFri = (5 - day + 7) % 7
-      const fri = new Date(t); fri.setDate(t.getDate() + diffToFri)
-      const sun = new Date(fri); sun.setDate(fri.getDate() + 2)
-      from = startOfDay(fri); to = endOfDay(sun); break
+    case 'this_week': {
+      from = startOfDay(now)
+      const endOfWeek = new Date(now)
+      const day = endOfWeek.getDay()
+      const diffToSun = (7 - day) % 7
+      endOfWeek.setDate(endOfWeek.getDate() + diffToSun)
+      to = endOfDay(endOfWeek)
+      break
     }
     case 'week': {
       from = startOfDay(now); const toD = new Date(now); toD.setDate(now.getDate() + 7); to = endOfDay(toD); break
