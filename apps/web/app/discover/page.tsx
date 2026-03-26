@@ -22,7 +22,7 @@ function rangeFromDateParam(dateParam?: string) {
     case 'weekend': {
       const t = new Date(now)
       const day = t.getDay()
-      const diffToThu = (4 - day + 7) % 7
+      const diffToThu = day === 0 ? -3 : day >= 4 ? 4 - day : 4 - day
       const thu = new Date(t)
       thu.setDate(t.getDate() + diffToThu)
       const sun = new Date(thu)

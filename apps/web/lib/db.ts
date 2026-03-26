@@ -5,7 +5,7 @@ function normalizeEventFromDate(from?: string) {
   const now = new Date()
   if (!from) return now.toISOString()
   const parsed = new Date(from)
-  if (Number.isNaN(parsed.getTime()) || parsed < now) return now.toISOString()
+  if (Number.isNaN(parsed.getTime())) return now.toISOString()
   return from
 }
 
