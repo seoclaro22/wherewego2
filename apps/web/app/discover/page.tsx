@@ -5,6 +5,50 @@ import { T } from '@/components/T'
 import { ClubCard } from '@/components/ClubCard'
 import { DjCard2 } from '@/components/DjCard2'
 
+const DISCOVER_TZ = 'Europe/Madrid'
+
+function tzDateKey(date: Date, timeZone = DISCOVER_TZ) {
+  return new Intl.DateTimeFormat('en-CA', {
+    timeZone,
+    year: 'numeric',
+    month: '2-digit',
+    day: '2-digit'
+  }).format(date)
+}
+
+function tzWeekday(date: Date, timeZone = DISCOVER_TZ) {
+  const weekday = new Intl.DateTimeFormat('en-US', { timeZone, weekday: 'short' }).format(date)
+  const map: Record<string, number> = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 }
+  return map[weekday] ?? 0
+}
+
+function weekendBounds(now: Date) {
+  const weekday = tzWeekday(now)
+  const anchor = new Date(now)
+  anchor.setUTCHours(12, 0, 0, 0)
+
+  const start = new Date(anchor)
+  const diffToThu = weekday === 0 ? -3 : weekday <= 4 ? 4 - weekday : -(weekday - 4)
+  start.setUTCDate(start.getUTCDate() + diffToThu)
+
+  const end = new Date(anchor)
+  const diffToSun = weekday === 0 ? 0 : 7 - weekday
+  end.setUTCDate(end.getUTCDate() + diffToSun)
+
+  return {
+    startKey: tzDateKey(start),
+    endKey: tzDateKey(end)
+  }
+}
+
+function isWeekendEvent(startAt: string, now: Date) {
+  const eventDate = new Date(startAt)
+  if (Number.isNaN(eventDate.getTime()) || eventDate < now) return false
+  const { startKey, endKey } = weekendBounds(now)
+  const eventKey = tzDateKey(eventDate)
+  return eventKey >= startKey && eventKey <= endKey
+}
+
 function rangeFromDateParam(dateParam?: string) {
   if (!dateParam) return {}
   const now = new Date()
@@ -51,12 +95,22 @@ function rangeFromDateParam(dateParam?: string) {
 export default async function DiscoverPage({ searchParams }: { searchParams: { q?: string; date?: string; genre?: string; zone?: string; tab?: string } }) {
   const tab = (searchParams?.tab || 'events') as 'events' | 'clubs' | 'djs'
   const zone = searchParams?.zone
-  const { from, to } = rangeFromDateParam(searchParams?.date)
-  const [events, clubs, djs] = await Promise.all([
-    tab === 'events' ? fetchEvents({ q: searchParams?.q ?? undefined, from, to, genre: searchParams?.genre ?? undefined, zone: zone ?? undefined, limit: 50, sponsoredFirst: true }) : Promise.resolve([] as any[]),
+  const now = new Date()
+  const isWeekend = searchParams?.date === 'weekend'
+  const { from, to } = isWeekend
+    ? {
+        from: new Date(now.getTime() - 36 * 60 * 60 * 1000).toISOString(),
+        to: new Date(now.getTime() + 5 * 24 * 60 * 60 * 1000).toISOString()
+      }
+    : rangeFromDateParam(searchParams?.date)
+  const [rawEvents, clubs, djs] = await Promise.all([
+    tab === 'events' ? fetchEvents({ q: searchParams?.q ?? undefined, from, to, genre: searchParams?.genre ?? undefined, zone: zone ?? undefined, limit: 100, sponsoredFirst: true }) : Promise.resolve([] as any[]),
     tab === 'clubs' ? fetchClubsPublic({ q: searchParams?.q ?? undefined, zone: zone ?? undefined, genre: searchParams?.genre ?? undefined, limit: 50 }) : Promise.resolve([] as any[]),
     tab === 'djs' ? fetchDjsPublic({ q: searchParams?.q ?? undefined, genre: searchParams?.genre ?? undefined, limit: 50 }) : Promise.resolve([] as any[]),
   ])
+  const events = isWeekend
+    ? rawEvents.filter((e: any) => isWeekendEvent(e.start_at, now))
+    : rawEvents
   return (
     <div className="relative -mx-4 md:-mx-6 lg:-mx-10 px-4 md:px-6 lg:px-10 py-8 md:py-10 min-h-[100vh] rounded-[28px] border border-white/5 bg-[radial-gradient(circle_at_20%_20%,rgba(88,57,176,0.35),transparent_30%),radial-gradient(circle_at_80%_0%,rgba(91,12,245,0.3),transparent_30%),radial-gradient(circle_at_80%_80%,rgba(255,76,181,0.28),transparent_28%),#070a14]">
       <div className="absolute inset-0 pointer-events-none rounded-[28px] mix-blend-screen opacity-70 landing-aurora" />
