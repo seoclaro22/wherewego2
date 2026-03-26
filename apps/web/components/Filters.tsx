@@ -5,15 +5,7 @@ import { createClient } from '@supabase/supabase-js'
 import { useEffect, useState } from 'react'
 import { useAuth } from '@/lib/auth'
 import { getAnalyticsContext, hasAnalyticsConsent } from '@/lib/analytics-client'
-
-const normalizeZone = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/[^a-z0-9\s]/g, ' ')
-    .replace(/\s+/g, ' ')
-    .trim()
+import { fetchKnownZones, normalizeZoneKey } from '@/lib/zones-client'
 
 export function Filters() {
   const router = useRouter()
@@ -27,15 +19,15 @@ export function Filters() {
   const tab = params.get('tab') ?? 'events'
   const { t } = useI18n()
   const [genres, setGenres] = useState<string[]>([])
-  const [zones, setZones] = useState<string[]>(['Mallorca','Ibiza','Barcelona','Madrid'])
+  const [zones, setZones] = useState<string[]>([])
   const [zonesReady, setZonesReady] = useState(false)
 
   // Asegura que la zona actual en la URL sea valida para el selector
   useEffect(() => {
     if (!zone || zones.includes(zone) || !zonesReady) return
-    const zoneNormalized = normalizeZone(zone)
+    const zoneNormalized = normalizeZoneKey(zone)
     const matched = zones.find((z) => {
-      const zNormalized = normalizeZone(z)
+      const zNormalized = normalizeZoneKey(z)
       return zoneNormalized === zNormalized || zoneNormalized.includes(zNormalized) || zNormalized.includes(zoneNormalized)
     })
     const sp = new URLSearchParams(params as any)
@@ -56,14 +48,10 @@ export function Filters() {
   useEffect(() => {
     const sb = createClient(process.env.NEXT_PUBLIC_SUPABASE_URL!, process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!)
     sb.from('genres').select('name').order('name').then(({ data }) => setGenres((data||[]).map(g=>g.name)))
-    // Intenta enriquecer lista de zonas leyendo de eventos_public si existe columna 'zone'
     ;(async () => {
       try {
-        const { data, error } = await sb.from('events_public').select('zone').not('zone','is',null).limit(100)
-        if (!error && data) {
-          const found = Array.from(new Set((data as any[]).map(x=>x.zone).filter(Boolean)))
-          if (found.length) setZones(prev => Array.from(new Set([...prev, ...found])))
-        }
+        const found = await fetchKnownZones()
+        setZones(found)
       } catch {} finally {
         setZonesReady(true)
       }

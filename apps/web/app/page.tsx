@@ -3,6 +3,7 @@ import { FormEvent, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useI18n } from '@/lib/i18n'
 import { createClient } from '@supabase/supabase-js'
+import { fetchKnownZones, normalizeZoneKey } from '@/lib/zones-client'
 
 type GeoStatus = 'idle' | 'locating' | 'success' | 'error'
 
@@ -12,14 +13,6 @@ function sb() {
     process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
   )
 }
-
-const normalizeZoneKey = (value: string) =>
-  value
-    .toLowerCase()
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/\s+/g, ' ')
-    .trim()
 
 async function reverseGeocode(lat: number, lon: number): Promise<string | null> {
   try {
@@ -43,7 +36,7 @@ export default function LandingPage() {
   const [suggestions, setSuggestions] = useState<string[]>([])
   const [geoStatus, setGeoStatus] = useState<GeoStatus>('idle')
   const [statusMsg, setStatusMsg] = useState<string | null>(null)
-  const presetZones = ['Palma de Mallorca', 'Mallorca', 'Ibiza', 'Barcelona', 'Madrid']
+  const [knownZones, setKnownZones] = useState<string[]>(['Palma de Mallorca', 'Mallorca', 'Ibiza', 'Barcelona', 'Madrid'])
 
   const normalizeZone = (raw: string) => {
     const cleaned = raw.trim()
@@ -61,26 +54,39 @@ export default function LandingPage() {
     }
   }, [])
 
+  useEffect(() => {
+    ;(async () => {
+      try {
+        const zones = await fetchKnownZones()
+        if (!zones.length) return
+        setKnownZones((prev) => Array.from(new Set([...prev, ...zones])).sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' })))
+      } catch {}
+    })()
+  }, [])
+
   async function resolveZoneWithFallback(zoneName: string) {
     const client = sb()
     const nowIso = new Date().toISOString()
-    const { data, error } = await client
-      .from('events_public')
-      .select('zone')
-      .gte('start_at', nowIso)
-      .not('zone', 'is', null)
-      .limit(1000)
-    if (error) {
-      const msg = String((error as any)?.message || '').toLowerCase()
-      if (msg.includes('zone')) {
-        return { zone: zoneName, fallback: null, hasEvents: true }
-      }
+    const [eventsRes, clubsRes] = await Promise.all([
+      client.from('events_public').select('zone').gte('start_at', nowIso).not('zone', 'is', null).limit(1000),
+      client.from('clubs').select('zone').eq('status', 'approved').not('zone', 'is', null).limit(1000),
+    ])
+
+    const eventZoneError = String((eventsRes.error as any)?.message || '').toLowerCase()
+    const clubZoneError = String((clubsRes.error as any)?.message || '').toLowerCase()
+
+    if ((eventsRes.error && !eventZoneError.includes('zone')) || (clubsRes.error && !clubZoneError.includes('zone'))) {
       return { zone: zoneName, fallback: null, hasEvents: false }
     }
 
     const counts = new Map<string, number>()
     const labelByKey = new Map<string, string>()
-    for (const row of (data || []) as any[]) {
+    const allRows = [
+      ...((eventsRes.data || []) as any[]),
+      ...((clubsRes.data || []) as any[]),
+    ]
+
+    for (const row of allRows) {
       const z = (row.zone || '').toString().trim()
       if (!z) continue
       const key = normalizeZoneKey(z)
@@ -188,7 +194,7 @@ export default function LandingPage() {
                 const val = e.target.value
                 setZone(val)
                 const norm = normalizeZone(val)
-                const matches = presetZones.filter(z => z.toLowerCase().startsWith(norm.toLowerCase()) && norm.length >= 2)
+                const matches = knownZones.filter(z => normalizeZoneKey(z).startsWith(normalizeZoneKey(norm)) && norm.length >= 2)
                 setSuggestions(matches.slice(0, 5))
               }}
               onBlur={() => {
@@ -198,7 +204,7 @@ export default function LandingPage() {
               }}
               onFocus={() => {
                 const norm = normalizeZone(zone)
-                const matches = presetZones.filter(z => z.toLowerCase().startsWith(norm.toLowerCase()) && norm.length >= 2)
+                const matches = knownZones.filter(z => normalizeZoneKey(z).startsWith(normalizeZoneKey(norm)) && norm.length >= 2)
                 setSuggestions(matches.slice(0, 5))
               }}
             />
