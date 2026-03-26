@@ -42,7 +42,7 @@ const dictionaries: Record<string, Dict> = {
     'filters.zone': 'Zona',
     'date.today': 'Hoy',
     'date.tomorrow': 'Manana',
-    'date.this_week': 'Esta semana',
+    'date.weekend': 'Fin de semana',
     'date.week': 'Proxima semana',
     'date.month': 'Este mes',
 
@@ -184,7 +184,7 @@ const dictionaries: Record<string, Dict> = {
     'filters.zone': 'Zone',
     'date.today': 'Today',
     'date.tomorrow': 'Tomorrow',
-    'date.this_week': 'This week',
+    'date.weekend': 'Weekend',
     'date.week': 'Next week',
     'date.month': 'This month',
 
@@ -326,7 +326,7 @@ const dictionaries: Record<string, Dict> = {
     'filters.zone': 'Zone',
     'date.today': 'Heute',
     'date.tomorrow': 'Morgen',
-    'date.this_week': 'Diese Woche',
+    'date.weekend': 'Wochenende',
     'date.week': 'Nachste Woche',
     'date.month': 'Dieser Monat',
 
