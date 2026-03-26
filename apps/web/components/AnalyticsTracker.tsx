@@ -114,31 +114,31 @@ export function AnalyticsTracker() {
       sessionId = crypto.randomUUID()
       setSessionId(sessionId)
       setSessionStart(now)
-      const { ua, lang, tz, deviceType, os, isPwa } = getDeviceMeta()
-      try {
-        await sb.from('app_sessions').insert({
-          id: sessionId,
-          device_id: deviceId,
-          user_id: user?.id || null,
-          started_at: nowIso,
-          last_seen_at: nowIso,
-          duration_ms: 0,
-          current_path: currentPath,
-          current_event_id: eventId,
-          is_new_device: newDeviceRef.current,
-          device_type: deviceType,
-          os,
-          lang,
-          tz,
-          user_agent: ua,
-          is_pwa: isPwa
-        })
-      } catch {}
     }
     sessionIdRef.current = sessionId
     sessionStartRef.current = getSessionStart() || now
     setSessionLastSeen(now)
     await touchDevice(nowIso, user?.id || null)
+    const { ua, lang, tz, deviceType, os, isPwa } = getDeviceMeta()
+    try {
+      await sb.from('app_sessions').upsert({
+        id: sessionId,
+        device_id: deviceId,
+        user_id: user?.id || null,
+        started_at: new Date(sessionStartRef.current || now).toISOString(),
+        last_seen_at: nowIso,
+        duration_ms: Math.max(0, now - (sessionStartRef.current || now)),
+        current_path: currentPath,
+        current_event_id: eventId,
+        is_new_device: newDeviceRef.current,
+        device_type: deviceType,
+        os,
+        lang,
+        tz,
+        user_agent: ua,
+        is_pwa: isPwa
+      }, { onConflict: 'id' })
+    } catch {}
     return { sessionId, deviceId }
   }
 
